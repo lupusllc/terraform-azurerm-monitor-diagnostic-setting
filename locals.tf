@@ -105,52 +105,23 @@ locals {
         # Using this will only work if resource has already been created, use of name/resource group is preferred for that reason.
         monitor_diagnostic_setting.target_resource_id != null ? split("/", monitor_diagnostic_setting.target_resource_id)[4] : null
       )
-      target_resource_id = monitor_diagnostic_setting.target_resource_id # Later we may add processing to construct this for commonly used resources.
+      target_resource_id       = monitor_diagnostic_setting.target_resource_id # Later we may add processing to construct this for commonly used resources.
+      target_sub_resource_path = monitor_diagnostic_setting.target_sub_resource_path
     }
-  ]
-
-  # Post processing for name generation.
-  monitor_diagnostic_settings_list_post_processed = [
-    for monitor_diagnostic_setting in local.monitor_diagnostic_settings_list : merge(
-      monitor_diagnostic_setting,
-      {
-        name = (
-          # Use name if provided.
-          monitor_diagnostic_setting.name != null ? monitor_diagnostic_setting.name :
-          # Otherwise, use eventhub name if provided.
-          monitor_diagnostic_setting.eventhub_name != null ? monitor_diagnostic_setting.eventhub_name :
-          # Otherwise, use log analytics resource group and name if provided.
-          monitor_diagnostic_setting.log_analytics_workspace_name != null ? format(
-            "%s--%s",
-            monitor_diagnostic_setting.log_analytics_workspace_resource_group_name,
-            monitor_diagnostic_setting.log_analytics_workspace_name
-          ) :
-          # Otherwise, use storage account resource group and name if provided.
-          monitor_diagnostic_setting.storage_account_name != null ? format(
-            "%s--%s",
-            monitor_diagnostic_setting.storage_account_resource_group_name,
-            monitor_diagnostic_setting.storage_account_name
-          ) :
-          # Otherwise, use partner resource group and name if provided.
-          monitor_diagnostic_setting.partner_solution_name != null ? format(
-            "%s--%s--%s",
-            monitor_diagnostic_setting.partner_solution_subscription_id,
-            monitor_diagnostic_setting.partner_solution_resource_group_name,
-            monitor_diagnostic_setting.partner_solution_name
-          ) :
-          # Otherwise, use null. This will result in an error later since name is required, but it is the desired result.
-          null
-        )
-      }
-    )
   ]
 
   # Used to create unique id for for_each loops, as just using the name may not be unique.
   monitor_diagnostic_settings = {
-    for monitor_diagnostic_setting in local.monitor_diagnostic_settings_list_post_processed : format(
+    for monitor_diagnostic_setting in local.monitor_diagnostic_settings_list : monitor_diagnostic_setting.target_sub_resource_path == null ? format(
       "%s>%s>%s",
       monitor_diagnostic_setting.target_resource_group_name,
       monitor_diagnostic_setting.target_name,
+      monitor_diagnostic_setting.name
+      ) : format(
+      "%s>%s>%s>%s",
+      monitor_diagnostic_setting.target_resource_group_name,
+      monitor_diagnostic_setting.target_name,
+      monitor_diagnostic_setting.target_sub_resource_path,
       monitor_diagnostic_setting.name
     ) => monitor_diagnostic_setting
   }
